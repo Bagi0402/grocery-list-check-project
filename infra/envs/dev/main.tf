@@ -15,3 +15,17 @@ provider "aws" {
     }
   }
 }
+
+locals {
+  name_prefix = "gcl-dev"
+}
+
+module "auth" {
+  source      = "../../modules/auth"
+  name_prefix = local.name_prefix
+}
+
+module "data" {
+  source      = "../../modules/data"
+  name_prefix = local.name_prefix
+}
