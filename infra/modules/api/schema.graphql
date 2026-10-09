@@ -1,0 +1,63 @@
+type Household {
+  id: ID!
+  name: String!
+  inviteCode: String!
+  createdBy: ID!
+  createdAt: AWSDateTime!
+}
+
+type Member {
+  householdId: ID!
+  userId: ID!
+  householdName: String!
+  displayName: String!
+  role: String!
+  joinedAt: AWSDateTime!
+}
+
+type Item {
+  householdId: ID!
+  id: ID!
+  name: String!
+  qty: String
+  category: String
+  checked: Boolean!
+  assignedTo: ID
+  updatedAt: AWSDateTime!
+  updatedBy: ID!
+  deletedAt: AWSDateTime
+}
+
+input UpsertItemInput {
+  householdId: ID!
+  # Generated on the device (UUID) so items can be created offline
+  id: ID!
+  name: String!
+  qty: String
+  category: String
+  checked: Boolean!
+  # User id of the person buying it, or null for anyone
+  assignedTo: ID
+  # Time of the edit on the device; used for last-write-wins
+  updatedAt: AWSDateTime!
+}
+
+type Query {
+  myHouseholds: [Member!]!
+  householdMembers(householdId: ID!): [Member!]!
+  listItems(householdId: ID!): [Item!]!
+  # Includes soft-deleted items, so offline devices can catch up
+  itemsChangedSince(householdId: ID!, since: AWSDateTime!): [Item!]!
+}
+
+type Mutation {
+  createHousehold(name: String!, displayName: String!): Household!
+  joinHousehold(inviteCode: String!, displayName: String!): Member!
+  upsertItem(input: UpsertItemInput!): Item!
+  deleteItem(householdId: ID!, id: ID!, updatedAt: AWSDateTime!): Item!
+}
+
+type Subscription {
+  onItemChanged(householdId: ID!): Item
+    @aws_subscribe(mutations: ["upsertItem", "deleteItem"])
+}
