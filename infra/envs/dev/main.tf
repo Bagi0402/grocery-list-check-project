@@ -29,3 +29,16 @@ module "data" {
   source      = "../../modules/data"
   name_prefix = local.name_prefix
 }
+
+module "api" {
+  source       = "../../modules/api"
+  name_prefix  = local.name_prefix
+  user_pool_id = module.auth.user_pool_id
+
+  tables = {
+    grocery = module.data.grocery_table
+    members = module.data.members_table
+    items   = module.data.items_table
+  }
+  table_arns = module.data.table_arns
+}
