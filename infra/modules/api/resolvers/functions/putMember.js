@@ -1,6 +1,7 @@
 import { util } from '@aws-appsync/utils';
 
 // Adds the signed-in user to ctx.stash.household (set by the previous function).
+// The invite code is copied onto the membership so members can share it.
 export function request(ctx) {
   const h = ctx.stash.household;
   return {
@@ -8,6 +9,7 @@ export function request(ctx) {
     key: util.dynamodb.toMapValues({ householdId: h.id, userId: ctx.identity.sub }),
     attributeValues: util.dynamodb.toMapValues({
       householdName: h.name,
+      inviteCode: h.inviteCode,
       displayName: ctx.args.displayName,
       role: h.createdBy === ctx.identity.sub ? 'owner' : 'member',
       joinedAt: util.time.nowISO8601(),
