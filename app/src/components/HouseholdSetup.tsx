@@ -58,7 +58,7 @@ export default function HouseholdSetup({ defaultName, canCancel, onCancel, onDon
   return (
     <section className="setup">
       <header className="topbar">
-        <h1>Set up a shared list</h1>
+        <h1>Bagi Venkat shared list</h1>
         <div className="actions">
           {canCancel && (
             <button type="button" className="link" onClick={onCancel}>
