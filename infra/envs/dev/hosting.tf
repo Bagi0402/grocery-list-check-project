@@ -2,7 +2,7 @@
 # Kept in its own file so main.tf stays unchanged.
 
 locals {
-  github_repo = "Bagi0402/grocery-list-check-project"
+  github_repo = "Bagi0402@80113786/grocery-list-check-project@1408320493"
 }
 
 module "hosting" {
