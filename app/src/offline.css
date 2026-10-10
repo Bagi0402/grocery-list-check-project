@@ -1,0 +1,21 @@
+/* Offline / sync status line */
+.status {
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+}
+
+.status.offline {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.status.syncing {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+button.link:disabled {
+  color: var(--muted);
+}

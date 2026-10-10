@@ -1,15 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import {
-  deleteItem,
-  errorMessage,
-  householdMembers,
-  isConflict,
-  listItems,
-  subscribeToItems,
-  upsertItem,
-} from '../api';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { householdMembers } from '../api';
 import type { Item, Member, Membership } from '../api';
+import { membersKey, readMeta, writeMeta } from '../offline/db';
+import type { GroceryDB } from '../offline/db';
+import { queueChange, startSync } from '../offline/sync';
+import { useOnline } from '../offline/useOnline';
 
 const CATEGORIES = ['Produce', 'Dairy', 'Bakery', 'Meat', 'Pantry', 'Frozen', 'Household', 'Other'];
 
@@ -23,6 +20,7 @@ const FILTERS: { key: Filter; label: string }[] = [
 ];
 
 type Props = {
+  db: GroceryDB;
   userId: string;
   membership: Membership;
   memberships: Membership[];
@@ -55,6 +53,7 @@ function compareItems(a: Item, b: Item): number {
 }
 
 export default function ShoppingList({
+  db,
   userId,
   membership,
   memberships,
@@ -63,10 +62,17 @@ export default function ShoppingList({
   signOut,
 }: Props) {
   const householdId = membership.householdId;
+  const online = useOnline();
 
-  // Every item we know about, keyed by id. Deleted items stay here (with
-  // deletedAt set) so a late, older update can't bring them back.
-  const [items, setItems] = useState<Record<string, Item>>({});
+  // The screen reads only from the on-device database. Local edits, sync
+  // and live updates all write there, and this query re-runs automatically.
+  const allItems = useLiveQuery(
+    () => db.items.where('householdId').equals(householdId).toArray(),
+    [db, householdId],
+  );
+  const pending =
+    useLiveQuery(() => db.outbox.where('householdId').equals(householdId).count(), [db, householdId]) ?? 0;
+
   const [members, setMembers] = useState<Member[]>([]);
   const [filter, setFilter] = useState<Filter>('all');
   const [error, setError] = useState('');
@@ -78,71 +84,40 @@ export default function ShoppingList({
   const [newAssignee, setNewAssignee] = useState('');
   const [formError, setFormError] = useState('');
 
-  const refresh = useCallback(async () => {
-    try {
-      const [list, people] = await Promise.all([
-        listItems(householdId),
-        householdMembers(householdId),
-      ]);
-      setItems(Object.fromEntries(list.map((item) => [item.id, item])));
-      setMembers(people);
-    } catch (e) {
-      setError(errorMessage(e));
-    }
-  }, [householdId]);
+  // Push queued changes, pull the latest list and listen for live updates.
+  useEffect(() => startSync(db, householdId, setError), [db, householdId]);
 
-  // Last-write-wins on the client too: ignore anything older than what we have.
-  const applyRemote = useCallback((incoming: Item) => {
-    setItems((prev) => {
-      const existing = prev[incoming.id];
-      if (existing && existing.updatedAt > incoming.updatedAt) return prev;
-      return { ...prev, [incoming.id]: incoming };
-    });
-  }, []);
-
+  // Members: show the saved copy straight away, refresh when online.
   useEffect(() => {
-    refresh();
-    const unsubscribe = subscribeToItems(householdId, applyRemote, (e) =>
-      setError(`Live updates stopped: ${errorMessage(e)}. Reload the page to reconnect.`),
-    );
-    // Catch up on anything missed while the tab was in the background.
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') refresh();
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      unsubscribe();
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, [householdId, refresh, applyRemote]);
-
-  async function handleWriteError(e: unknown) {
-    if (!isConflict(e)) setError(errorMessage(e));
-    await refresh();
-  }
-
-  // Optimistic update: show the change immediately, then save it.
-  async function save(item: Item) {
-    setItems((prev) => ({ ...prev, [item.id]: item }));
-    try {
-      applyRemote(await upsertItem(item));
-    } catch (e) {
-      await handleWriteError(e);
+    let cancelled = false;
+    readMeta<Member[]>(db, membersKey(householdId)).then((cached) => {
+      if (!cancelled && cached) setMembers(cached);
+    });
+    if (online) {
+      householdMembers(householdId)
+        .then(async (fresh) => {
+          if (cancelled) return;
+          setMembers(fresh);
+          await writeMeta(db, membersKey(householdId), fresh);
+        })
+        .catch(() => undefined);
     }
+    return () => {
+      cancelled = true;
+    };
+  }, [db, householdId, online]);
+
+  function save(op: 'upsert' | 'delete', item: Item) {
+    queueChange(db, op, item).catch(() => setError('Could not save the change on this device.'));
   }
 
   function update(item: Item, changes: Partial<Item>) {
-    save({ ...item, ...changes, updatedAt: now(), updatedBy: userId });
+    save('upsert', { ...item, ...changes, updatedAt: now(), updatedBy: userId });
   }
 
-  async function remove(item: Item) {
+  function remove(item: Item) {
     const t = now();
-    setItems((prev) => ({ ...prev, [item.id]: { ...item, deletedAt: t, updatedAt: t } }));
-    try {
-      applyRemote(await deleteItem(householdId, item.id, t));
-    } catch (e) {
-      await handleWriteError(e);
-    }
+    save('delete', { ...item, deletedAt: t, updatedAt: t, updatedBy: userId });
   }
 
   function onAdd(e: FormEvent) {
@@ -152,7 +127,7 @@ export default function ShoppingList({
       setFormError('Enter an item name');
       return;
     }
-    save({
+    save('upsert', {
       householdId,
       id: crypto.randomUUID(),
       name,
@@ -185,7 +160,7 @@ export default function ShoppingList({
     return members.find((m) => m.userId === id)?.displayName ?? 'Someone';
   };
 
-  const live = useMemo(() => Object.values(items).filter((i) => !i.deletedAt), [items]);
+  const live = useMemo(() => (allItems ?? []).filter((i) => !i.deletedAt), [allItems]);
   const visible = useMemo(
     () => live.filter((i) => matchesFilter(i, filter, userId)).sort(compareItems),
     [live, filter, userId],
@@ -240,7 +215,7 @@ export default function ShoppingList({
           </p>
         </div>
         <div className="actions">
-          <button type="button" className="link" onClick={onAddHousehold}>
+          <button type="button" className="link" onClick={onAddHousehold} disabled={!online}>
             + List
           </button>
           <button type="button" className="link" onClick={signOut}>
@@ -248,6 +223,19 @@ export default function ShoppingList({
           </button>
         </div>
       </header>
+
+      {!online ? (
+        <p className="status offline" role="status">
+          You're offline. Changes are saved on this device
+          {pending > 0 ? ` (${pending} waiting)` : ''} and will sync when you reconnect.
+        </p>
+      ) : (
+        pending > 0 && (
+          <p className="status syncing" role="status">
+            Syncing {pending} {pending === 1 ? 'change' : 'changes'}…
+          </p>
+        )
+      )}
 
       {error && (
         <div className="banner" role="alert">
@@ -310,7 +298,9 @@ export default function ShoppingList({
         ))}
       </nav>
 
-      {visible.length === 0 ? (
+      {allItems === undefined ? (
+        <p className="empty">Loading…</p>
+      ) : visible.length === 0 ? (
         <p className="empty">
           {live.length === 0 ? 'Your list is empty. Add the first item above.' : 'Nothing here for this filter.'}
         </p>
