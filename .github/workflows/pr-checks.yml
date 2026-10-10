@@ -1,0 +1,82 @@
+name: PR checks
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write # lets the job request a GitHub OIDC token for AWS
+
+env:
+  AWS_REGION: ap-southeast-2
+  TF_VERSION: "1.16.1" # TODO: match `terraform -version` on your laptop
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  app:
+    name: Build app
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true # report lint issues without blocking the PR
+
+      - name: Type-check and build
+        run: npm run build
+
+  terraform:
+    name: Terraform plan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/envs/dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_PLAN_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Format check
+        run: terraform fmt -check -recursive ../..
+
+      - run: terraform init -input=false
+
+      - run: terraform validate
+
+      # Read-only role, so no state lock (-lock=false).
+      - name: Plan
+        run: terraform plan -input=false -lock=false -no-color | tee plan.txt
+
+      - name: Show plan in the run summary
+        if: always()
+        run: |
+          {
+            echo "### Terraform plan"
+            echo '```'
+            cat plan.txt 2>/dev/null || echo "Plan did not run."
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

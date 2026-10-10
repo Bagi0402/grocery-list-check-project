@@ -1,0 +1,55 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # also allows a manual run from the Actions tab
+
+permissions:
+  contents: read
+  id-token: write # lets the job request a GitHub OIDC token for AWS
+
+# Never run two deployments at the same time.
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-southeast-2
+  TF_VERSION: "1.16.1" # TODO: match `terraform -version` on your laptop
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  deploy:
+    name: Apply infrastructure and deploy app
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false # keeps `terraform output -raw` clean for the script
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Terraform apply
+        working-directory: infra/envs/dev
+        run: |
+          terraform init -input=false
+          terraform apply -input=false -auto-approve
+
+      - name: Build and deploy app
+        run: bash scripts/deploy-app.sh

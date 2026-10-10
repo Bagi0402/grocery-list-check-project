@@ -1,9 +1,9 @@
 terraform {
   required_version = ">= 1.10"
   required_providers {
-    aws = { 
-        source = "hashicorp/aws" 
-        version = "~> 6.0" }
+    aws = {
+      source = "hashicorp/aws"
+    version = "~> 6.0" }
   }
 }
 
@@ -36,6 +36,6 @@ resource "aws_s3_bucket_public_access_block" "devenv" {
   restrict_public_buckets = true
 }
 
-output "state_bucket" { 
-    value = aws_s3_bucket.devenv.bucket 
+output "state_bucket" {
+  value = aws_s3_bucket.devenv.bucket
 }
