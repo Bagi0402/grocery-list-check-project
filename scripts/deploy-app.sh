@@ -28,19 +28,32 @@ cd "$ROOT/app"
 npm ci
 npm run build
 
+# Files that must always be fetched fresh, so new versions reach users:
+# the page itself, the service worker and its registration, and the manifest.
+NO_CACHE_FILES=(index.html sw.js registerSW.js manifest.webmanifest)
+
+EXCLUDES=()
+for f in "${NO_CACHE_FILES[@]}"; do
+  EXCLUDES+=(--exclude "$f")
+done
+
 echo "Uploading to s3://$BUCKET"
 # 1. Hashed assets first, cached for a year (their names change on every build).
-aws s3 sync dist/ "s3://$BUCKET" --delete \
-  --exclude "index.html" \
+aws s3 sync dist/ "s3://$BUCKET" --delete "${EXCLUDES[@]}" \
   --cache-control "public,max-age=31536000,immutable"
 
-# 2. index.html last, never cached, so visitors always get the newest version.
-aws s3 cp dist/index.html "s3://$BUCKET/index.html" \
-  --cache-control "no-cache"
+# 2. Entry files last, never cached.
+INVALIDATE=()
+for f in "${NO_CACHE_FILES[@]}"; do
+  if [ -f "dist/$f" ]; then
+    aws s3 cp "dist/$f" "s3://$BUCKET/$f" --cache-control "no-cache"
+    INVALIDATE+=("/$f")
+  fi
+done
 
-echo "Clearing CloudFront's cached copy of index.html"
+echo "Clearing CloudFront's cached copies of: ${INVALIDATE[*]}"
 aws cloudfront create-invalidation \
   --distribution-id "$DISTRIBUTION_ID" \
-  --paths "/index.html" > /dev/null
+  --paths "${INVALIDATE[@]}" > /dev/null
 
 echo "Deployed: $SITE_URL"
