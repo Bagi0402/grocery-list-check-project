@@ -1,0 +1,9 @@
+{
+  "name": "notify",
+  "private": true,
+  "type": "module",
+  "description": "Sends Web Push notifications when items in a shared list change",
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}

@@ -63,6 +63,10 @@ jobs:
       - name: Format check
         run: terraform fmt -check -recursive ../..
 
+      - name: Install Lambda dependencies
+        working-directory: lambdas/notify
+        run: npm ci --omit=dev
+
       - run: terraform init -input=false
 
       - run: terraform validate

@@ -15,12 +15,20 @@ BUCKET="$(tf_out site_bucket)"
 DISTRIBUTION_ID="$(tf_out cloudfront_distribution_id)"
 SITE_URL="$(tf_out site_url)"
 
+# Public VAPID key for push notifications (created by scripts/setup-vapid.sh).
+VAPID_PUBLIC_KEY="$(aws ssm get-parameter --name "$(tf_out vapid_public_param)" \
+  --query Parameter.Value --output text 2>/dev/null || true)"
+if [ -z "$VAPID_PUBLIC_KEY" ]; then
+  echo "Note: no VAPID keys yet (run scripts/setup-vapid.sh); notifications will be hidden in the app."
+fi
+
 echo "Writing app/.env.local from Terraform outputs"
 {
   echo "VITE_AWS_REGION=ap-southeast-2"
   echo "VITE_USER_POOL_ID=$(tf_out user_pool_id)"
   echo "VITE_USER_POOL_CLIENT_ID=$(tf_out web_client_id)"
   echo "VITE_GRAPHQL_URL=$(tf_out graphql_url)"
+  echo "VITE_VAPID_PUBLIC_KEY=$VAPID_PUBLIC_KEY"
 } > "$ROOT/app/.env.local"
 
 echo "Building the app"
@@ -30,7 +38,7 @@ npm run build
 
 # Files that must always be fetched fresh, so new versions reach users:
 # the page itself, the service worker and its registration, and the manifest.
-NO_CACHE_FILES=(index.html sw.js registerSW.js manifest.webmanifest)
+NO_CACHE_FILES=(index.html sw.js registerSW.js manifest.webmanifest push-sw.js)
 
 EXCLUDES=()
 for f in "${NO_CACHE_FILES[@]}"; do

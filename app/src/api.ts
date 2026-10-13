@@ -83,6 +83,18 @@ const DELETE_ITEM = /* GraphQL */ `
   }
 `;
 
+const SAVE_PUSH_SUBSCRIPTION = /* GraphQL */ `
+  mutation SavePushSubscription($input: PushSubscriptionInput!) {
+    savePushSubscription(input: $input) { endpointHash }
+  }
+`;
+
+const DELETE_PUSH_SUBSCRIPTION = /* GraphQL */ `
+  mutation DeletePushSubscription($endpointHash: String!) {
+    deletePushSubscription(endpointHash: $endpointHash) { endpointHash }
+  }
+`;
+
 const ON_ITEM_CHANGED = /* GraphQL */ `
   subscription OnItemChanged($householdId: ID!) {
     onItemChanged(householdId: $householdId) { ${ITEM_FIELDS} }
@@ -91,8 +103,6 @@ const ON_ITEM_CHANGED = /* GraphQL */ `
 
 // ---------- Helpers ----------
 async function gql<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
-  // Amplify's types expect generated GraphQL types; our helper uses plain
-  // strings, so we tell TypeScript to accept our variables object as-is.
   const result = (await client.graphql({
     query,
     variables: variables as never,
@@ -176,6 +186,21 @@ export async function upsertItem(item: Item): Promise<Item> {
 export async function deleteItem(householdId: string, id: string, updatedAt: string): Promise<Item> {
   const data = await gql<{ deleteItem: Item }>(DELETE_ITEM, { householdId, id, updatedAt });
   return data.deleteItem;
+}
+
+export type PushSubscriptionInput = {
+  endpointHash: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+};
+
+export async function savePushSubscription(input: PushSubscriptionInput): Promise<void> {
+  await gql<unknown>(SAVE_PUSH_SUBSCRIPTION, { input });
+}
+
+export async function deletePushSubscription(endpointHash: string): Promise<void> {
+  await gql<unknown>(DELETE_PUSH_SUBSCRIPTION, { endpointHash });
 }
 
 type Subscription = { unsubscribe(): void };

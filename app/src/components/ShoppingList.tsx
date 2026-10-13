@@ -7,6 +7,7 @@ import { membersKey, readMeta, writeMeta } from '../offline/db';
 import type { GroceryDB } from '../offline/db';
 import { queueChange, startSync } from '../offline/sync';
 import { useOnline } from '../offline/useOnline';
+import NotificationToggle from './NotificationToggle';
 
 const CATEGORIES = ['Produce', 'Dairy', 'Bakery', 'Meat', 'Pantry', 'Frozen', 'Household', 'Other'];
 
@@ -213,6 +214,7 @@ export default function ShoppingList({
               </>
             )}
           </p>
+          <NotificationToggle />
         </div>
         <div className="actions">
           <button type="button" className="link" onClick={onAddHousehold} disabled={!online}>

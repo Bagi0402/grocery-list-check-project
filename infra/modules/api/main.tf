@@ -60,6 +60,7 @@ data "aws_iam_policy_document" "dynamodb" {
       "dynamodb:PutItem",
       "dynamodb:UpdateItem",
       "dynamodb:Query",
+      "dynamodb:DeleteItem",
     ]
     resources = flatten([
       for arn in values(var.table_arns) : [arn, "${arn}/index/*"]
@@ -104,6 +105,8 @@ locals {
     itemsChangedSince     = "items"
     upsertItem            = "items"
     deleteItem            = "items"
+    savePushSubscription   = "push_subscriptions"
+    deletePushSubscription = "push_subscriptions"
   }
 
   # Each GraphQL field runs a pipeline of functions, in order.
@@ -117,6 +120,8 @@ locals {
     "Mutation.upsertItem"        = ["checkMembership", "upsertItem"]
     "Mutation.deleteItem"        = ["checkMembership", "deleteItem"]
     "Subscription.onItemChanged" = ["checkMembership"]
+    "Mutation.savePushSubscription"   = ["savePushSubscription"]
+    "Mutation.deletePushSubscription" = ["deletePushSubscription"]
   }
 }
 

@@ -3,6 +3,7 @@ import { fetchUserAttributes } from 'aws-amplify/auth';
 import { errorMessage, myHouseholds } from '../api';
 import type { Membership } from '../api';
 import { MEMBERSHIPS_KEY, openDb, readMeta, writeMeta } from '../offline/db';
+import { disablePush } from '../push';
 import HouseholdSetup from './HouseholdSetup';
 import ShoppingList from './ShoppingList';
 
@@ -69,6 +70,8 @@ export default function Home({ userId, signOut }: Props) {
     ) {
       return;
     }
+    // Stop this device getting the user's notifications (best effort if offline).
+    await disablePush().catch(() => undefined);
     // Remove this user's offline copy so the next person on this device can't see it.
     await db.delete();
     signOut();

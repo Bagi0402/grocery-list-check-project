@@ -45,6 +45,10 @@ jobs:
           cache: npm
           cache-dependency-path: app/package-lock.json
 
+      - name: Install Lambda dependencies
+        working-directory: lambdas/notify
+        run: npm ci --omit=dev    
+
       - name: Terraform apply
         working-directory: infra/envs/dev
         run: |

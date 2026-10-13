@@ -39,6 +39,7 @@ module "api" {
     grocery = module.data.grocery_table
     members = module.data.members_table
     items   = module.data.items_table
+    push_subscriptions = module.data.push_subscriptions_table
   }
   table_arns = module.data.table_arns
 }

@@ -43,6 +43,19 @@ input UpsertItemInput {
   updatedAt: AWSDateTime!
 }
 
+# A browser's Web Push subscription (one per device)
+input PushSubscriptionInput {
+  # SHA-256 of the endpoint, computed on the device
+  endpointHash: String!
+  endpoint: String!
+  p256dh: String!
+  auth: String!
+}
+
+type PushSubscriptionRecord {
+  endpointHash: String!
+}
+
 type Query {
   myHouseholds: [Member!]!
   householdMembers(householdId: ID!): [Member!]!
@@ -56,6 +69,8 @@ type Mutation {
   joinHousehold(inviteCode: String!, displayName: String!): Member!
   upsertItem(input: UpsertItemInput!): Item!
   deleteItem(householdId: ID!, id: ID!, updatedAt: AWSDateTime!): Item!
+  savePushSubscription(input: PushSubscriptionInput!): PushSubscriptionRecord!
+  deletePushSubscription(endpointHash: String!): PushSubscriptionRecord
 }
 
 type Subscription {
