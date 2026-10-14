@@ -1,0 +1,26 @@
+name: Uptime check
+
+# Free uptime monitoring: GitHub emails you if a scheduled run fails.
+# Note: GitHub pauses scheduled workflows after 60 days without repo activity.
+on:
+  schedule:
+    - cron: "17 */2 * * *" # every 2 hours
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Site serves the app
+        env:
+          SITE_URL: ${{ vars.E2E_BASE_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$SITE_URL" || { echo "Set the E2E_BASE_URL repository variable"; exit 1; }
+          curl -fsSL --max-time 20 "$SITE_URL" | grep -q "Shared Grocery List"
+          curl -fsS --max-time 20 -o /dev/null "$SITE_URL/manifest.webmanifest"
+          curl -fsS --max-time 20 -o /dev/null "$SITE_URL/sw.js"
+          echo "OK: $SITE_URL is up"

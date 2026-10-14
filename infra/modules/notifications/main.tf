@@ -50,6 +50,11 @@ resource "aws_iam_role_policy_attachment" "logs" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
+resource "aws_iam_role_policy_attachment" "xray" {
+  role       = aws_iam_role.notify.name
+  policy_arn = "arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess"
+}
+
 data "aws_iam_policy_document" "notify" {
   statement {
     sid = "ReadItemChanges"
@@ -107,6 +112,11 @@ resource "aws_lambda_function" "notify" {
   filename         = data.archive_file.notify.output_path
   source_code_hash = data.archive_file.notify.output_base64sha256
 
+  # X-Ray: see each invocation's calls to DynamoDB, SSM and push services.
+  tracing_config {
+    mode = "Active"
+  }
+
   environment {
     variables = {
       MEMBERS_TABLE       = var.members_table
@@ -120,6 +130,7 @@ resource "aws_lambda_function" "notify" {
   depends_on = [
     aws_cloudwatch_log_group.notify,
     aws_iam_role_policy_attachment.logs,
+    aws_iam_role_policy_attachment.xray,
   ]
 }
 

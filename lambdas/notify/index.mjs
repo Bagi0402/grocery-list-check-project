@@ -106,6 +106,7 @@ async function send(subscription, payload) {
       payload,
       { TTL: 3600, urgency: 'normal' },
     );
+    return 'sent';
   } catch (err) {
     if (err.statusCode === 404 || err.statusCode === 410) {
       // The device unsubscribed or the app was removed: forget it.
@@ -116,11 +117,39 @@ async function send(subscription, payload) {
         }),
       );
       console.log('Removed expired subscription', subscription.endpointHash);
-    } else {
-      // Don't throw: one failing device shouldn't block everyone else's notifications.
-      console.error('Push failed', err.statusCode, err.body ?? err.message);
+      return 'expired';
     }
+    // Don't throw: one failing device shouldn't block everyone else's notifications.
+    console.error('Push failed', err.statusCode, err.body ?? err.message);
+    return 'failed';
   }
+}
+
+// Publish custom CloudWatch metrics by writing one structured log line
+// (Embedded Metric Format): no extra API calls or permissions needed.
+function publishMetrics(counts) {
+  console.log(
+    JSON.stringify({
+      _aws: {
+        Timestamp: Date.now(),
+        CloudWatchMetrics: [
+          {
+            Namespace: 'GroceryList',
+            Dimensions: [['Function']],
+            Metrics: [
+              { Name: 'NotificationsSent', Unit: 'Count' },
+              { Name: 'NotificationsFailed', Unit: 'Count' },
+              { Name: 'ExpiredSubscriptionsRemoved', Unit: 'Count' },
+            ],
+          },
+        ],
+      },
+      Function: process.env.AWS_LAMBDA_FUNCTION_NAME ?? 'notify',
+      NotificationsSent: counts.sent,
+      NotificationsFailed: counts.failed,
+      ExpiredSubscriptionsRemoved: counts.expired,
+    }),
+  );
 }
 
 export const handler = async (event) => {
@@ -151,7 +180,7 @@ export const handler = async (event) => {
     byHousehold.set(change.householdId, list);
   }
 
-  let sent = 0;
+  const counts = { sent: 0, failed: 0, expired: 0 };
   for (const [householdId, list] of byHousehold) {
     const members = await queryAll(MEMBERS_TABLE, 'householdId', householdId);
     const names = new Map(members.map((m) => [m.userId, m.displayName]));
@@ -176,9 +205,12 @@ export const handler = async (event) => {
       });
 
       const subscriptions = await queryAll(SUBSCRIPTIONS_TABLE, 'userId', member.userId);
-      await Promise.all(subscriptions.map((s) => send(s, payload)));
-      sent += subscriptions.length;
+      const outcomes = await Promise.all(subscriptions.map((s) => send(s, payload)));
+      for (const outcome of outcomes) counts[outcome] += 1;
     }
   }
-  console.log(`Processed ${changes.length} change(s), attempted ${sent} notification(s)`);
+  publishMetrics(counts);
+  console.log(
+    `Processed ${changes.length} change(s): ${counts.sent} sent, ${counts.failed} failed, ${counts.expired} expired device(s) removed`,
+  );
 };

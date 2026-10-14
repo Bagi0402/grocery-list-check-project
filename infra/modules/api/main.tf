@@ -5,6 +5,7 @@ resource "aws_appsync_graphql_api" "this" {
   name                = "${var.name_prefix}-api"
   authentication_type = "AMAZON_COGNITO_USER_POOLS"
   schema              = file("${path.module}/schema.graphql")
+  xray_enabled        = true
 
   user_pool_config {
     user_pool_id   = var.user_pool_id
