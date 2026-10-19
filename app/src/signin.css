@@ -1,0 +1,123 @@
+/* Sign-in screen: teal-to-green background, illustration, restyled sign-in card */
+
+.signin {
+  --signin-teal: #0e5e63;
+  --signin-teal-deep: #0b4b4f;
+  --signin-green: #2f8f5b;
+  --signin-mint: #cdefd9;
+  --signin-sun: #f6d55c;
+
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 440px);
+  align-items: center;
+  gap: clamp(24px, 5vw, 72px);
+  padding: clamp(24px, 6vw, 72px) clamp(16px, 6vw, 88px);
+  color: #ffffff;
+  background-color: var(--signin-teal);
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Cg fill='none' stroke='%23ffffff' stroke-opacity='0.09' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='30' cy='34' r='12'/%3E%3Cpath d='M30 22 l2 -7 M32 17 q6 -4 10 0'/%3E%3Cpath d='M110 20 l14 30 l-8 4 z M117 20 l-3 -8 M117 20 l3 -9'/%3E%3Cellipse cx='44' cy='118' rx='14' ry='9' transform='rotate%28-20 44 118%29'/%3E%3Cpath d='M120 108 q14 2 18 16 q-16 4 -24 -8 q2 -6 6 -8 z'/%3E%3Ccircle cx='96' cy='78' r='3'/%3E%3Ccircle cx='14' cy='76' r='3'/%3E%3C/g%3E%3C/svg%3E"),
+    linear-gradient(150deg, #0e5e63 0%, #12796d 48%, #2f8f5b 100%);
+  background-size: 160px 160px, cover;
+  background-attachment: fixed;
+}
+
+.signin-intro {
+  max-width: 560px;
+}
+
+.signin-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 28px;
+  font-weight: 600;
+  color: var(--signin-mint);
+}
+
+.signin-brand img {
+  border-radius: 8px;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+
+.signin h1 {
+  margin: 0;
+  font-family: 'Bricolage Grotesque', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: clamp(2.1rem, 4.4vw, 3.6rem);
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+  max-width: 13ch;
+  text-wrap: balance;
+}
+
+.signin-lead {
+  margin: 18px 0 0;
+  max-width: 42ch;
+  font-size: 1.05rem;
+  line-height: 1.55;
+  color: #e3f6ec;
+}
+
+.signin-scene {
+  display: block;
+  /* Shrinks on short screens so the whole scene stays in view */
+  width: min(100%, 520px, max(300px, calc((100vh - 520px) * 1.37)));
+  height: auto;
+  margin-top: 28px;
+}
+
+/* --- The Amplify sign-in card, in the app's colours --- */
+.signin-panel [data-amplify-authenticator] {
+  --amplify-colors-brand-primary-10: #e3f4ee;
+  --amplify-colors-brand-primary-20: #c3e7da;
+  --amplify-colors-brand-primary-40: #6cc0a3;
+  --amplify-colors-brand-primary-60: #1f8a74;
+  --amplify-colors-brand-primary-80: #0e5e63;
+  --amplify-colors-brand-primary-90: #0b4d51;
+  --amplify-colors-brand-primary-100: #083b3e;
+  --amplify-fonts-default-variable: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --amplify-fonts-default-static: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  margin-top: 0;
+  color: #1d2420;
+}
+
+.signin-panel [data-amplify-authenticator] [data-amplify-router] {
+  border: 0;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 28px 60px -24px rgba(3, 38, 34, 0.65);
+}
+
+/* --- Phones and narrow windows: stack, smaller illustration --- */
+@media (max-width: 860px) {
+  .signin {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+    gap: 20px;
+    background-attachment: scroll;
+  }
+
+  .signin-intro {
+    max-width: none;
+  }
+
+  .signin-brand {
+    margin-bottom: 16px;
+  }
+
+  .signin-lead {
+    display: none;
+  }
+
+  .signin-scene {
+    max-width: 340px;
+    margin: 12px auto 0;
+  }
+
+  .signin-panel [data-amplify-authenticator] [data-amplify-container] {
+    width: 100%;
+  }
+}
