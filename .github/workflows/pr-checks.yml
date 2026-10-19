@@ -37,7 +37,10 @@ jobs:
       - name: Lint
         run: npm run lint
         continue-on-error: true # report lint issues without blocking the PR
-
+      
+      - name: Unit tests
+        run: npm test
+        
       - name: Type-check and build
         run: npm run build
 
