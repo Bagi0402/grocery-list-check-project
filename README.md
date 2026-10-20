@@ -5,7 +5,7 @@ A real-time, offline-first shopping list for two or more people, built on a full
 [![Deploy](https://github.com/Bagi0402/grocery-list-check-project/actions/workflows/deploy.yml/badge.svg)](https://github.com/Bagi0402/grocery-list-check-project/actions/workflows/deploy.yml)
 [![PR checks](https://github.com/Bagi0402/grocery-list-check-project/actions/workflows/pr-checks.yml/badge.svg)](https://github.com/Bagi0402/grocery-list-check-project/actions/workflows/pr-checks.yml)
 
-**Live demo:** https://YOUR-ID.cloudfront.net — sign up with any email address, create a list, and open it in a second browser to see live sync.
+**Live demo:** (https://bagi0402.github.io/groceries) — sign up with any email address, create a list, and open it in a second browser to see live sync.
 
 ![Demo: two phones syncing a shared list](docs/demo.gif)
 
@@ -13,11 +13,11 @@ A real-time, offline-first shopping list for two or more people, built on a full
 
 ## Features
 
-- **Shared lists**: create a household and invite others with an 8-character code.
+- **Shared lists**: create a list and invite others with an 8-character code.
 - **Live sync**: changes appear on everyone's screen within a second (GraphQL subscriptions over WebSockets).
 - **Works offline**: add, tick and delete items with no signal; changes sync automatically when you reconnect.
 - **Item assignment**: mark who's buying what and filter by *Mine / Theirs / Anyone*.
-- **Push notifications**: "Bagi added Milk for you to buy", delivered even when the app is closed.
+- **Push notifications**: "Mr.X added Milk for you to buy", delivered even when the app is closed.
 - **Installable**: add to the home screen on iPhone or Android and use it like a native app.
 
 ## Architecture
@@ -52,24 +52,26 @@ flowchart LR
 | Notifications | Lambda (Node.js, arm64) + Web Push | Triggered by DynamoDB Streams; keys in SSM |
 | Infrastructure | Terraform (modules, S3 remote state with native locking) | Everything reproducible from code |
 | CI/CD | GitHub Actions + OIDC | Plan on pull requests, apply and deploy on merge |
+| Monitoring | CloudWatch alarms + dashboard, SNS email alerts, custom metrics (Embedded Metric Format) | Know about failures before users do; see API, real-time and notification health on one screen |
+| Tracing and uptime | AWS X-Ray; scheduled GitHub Actions uptime check | Follow one request across AppSync and Lambda; free outside-in check that the site is up |
 
 ## How it works
 
 ### Security model
-Every request is authorised **on the server**. Each AppSync operation runs as a *pipeline*: the first function, `checkMembership`, rejects anyone who isn't a member of the household, including clients trying to subscribe to another household's live updates. The app can't bypass it. This was tested with a second user, who gets `Unauthorized` until they join with the invite code.
+Every request is authorised **on the server**. Each AppSync operation runs as a *pipeline*: the first function, `checkMembership`, rejects anyone who isn't a member of the list, including clients trying to subscribe to another list's live updates. The app can't bypass it. This was tested with a second user, who gets `Unauthorized` until they join with the invite code.
 
 ### Offline-first sync
 1. Every change is written to IndexedDB **and** queued in an *outbox*, in one transaction. The UI reads only from IndexedDB, so it behaves the same online or offline.
 2. When online, the outbox is sent in order. The queue is **compacted**: ten offline edits to the same item become one request, because each entry carries the item's full state.
 3. Errors are classified: network failures stay queued and retry; conflicts mean the server keeps its newer edit; permanent errors are dropped so the queue can't get stuck.
-4. On reconnect, the app pulls the household's list and merges it, keeping any local edit that is newer or still unsent.
+4. On reconnect, the app pulls the list's items/details and merges it, keeping any local edit that is newer or still unsent.
 5. Item IDs are UUIDs generated **on the device**, so items can be created offline without asking the server for an ID.
 
 ### Conflict resolution
 Last-write-wins on `updatedAt`, enforced by a DynamoDB **conditional write** (`attribute_not_exists(id) OR updatedAt < :incoming`). Deletes are **soft** (`deletedAt`) so they sync like any other change, and a TTL attribute (`purgeAt`) removes them for good after 30 days.
 
 ### Notifications
-DynamoDB Streams trigger a Lambda that groups changes per household (with a 5-second batching window), works out who changed what, and sends one Web Push notification to every *other* member's devices. Stream records for TTL clean-ups are filtered out before the Lambda runs. Expired subscriptions (HTTP 410) are deleted automatically.
+DynamoDB Streams trigger a Lambda that groups changes per list (with a 5-second batching window), works out who changed what, and sends one Web Push notification to every *other* member's devices. Stream records for TTL clean-ups are filtered out before the Lambda runs. Expired subscriptions (HTTP 410) are deleted automatically.
 
 ## Key decisions and trade-offs
 
@@ -83,6 +85,10 @@ DynamoDB Streams trigger a Lambda that groups changes per household (with a 5-se
 | VAPID keys created by a script, not Terraform | Keeps secrets out of Terraform state | One manual setup step |
 | Deploy role with broad permissions, locked to `main` | Terraform manages IAM, AppSync, Cognito, etc. | A permissions boundary would tighten it further |
 | OIDC trust on GitHub's immutable owner/repo IDs | Protects against "repo-jacking" if the repo is renamed | Must match GitHub's exact `sub` claim format |
+| CloudWatch rather than a third-party tool (e.g. Datadog, Grafana) | Built into AWS, covered by the free tier, no extra accounts or agents | Fewer features and less polished dashboards than specialist tools |
+| Custom metrics via Embedded Metric Format | Tracks product health (notifications sent/failed) with no extra API calls or permissions | Adds log volume; custom metrics cost money beyond the free tier |
+| Alarms treat missing data as "not breaching" | In a low-traffic app, no data usually means no activity, so this avoids false alarms | An outage with zero traffic wouldn't trigger the API alarms; the uptime check covers that case |
+| Uptime check on GitHub Actions, not CloudWatch Synthetics | Free for public repositories | Runs every 2 hours rather than every minute; GitHub pauses scheduled workflows after 60 days without repo activity |
 
 ## Engineering challenges solved
 
@@ -104,11 +110,11 @@ app/                    React + Vite PWA (TypeScript)
   e2e/                  Playwright two-user tests
 infra/
   bootstrap/            Terraform state bucket
-  modules/              auth, data, api, hosting, github-ci, notifications
-  envs/dev/             Wires the modules together
-lambdas/notify/         Push-notification Lambda
+  modules/              auth, data, api, hosting, github-ci, notifications, monitoring
+  envs/dev/             Wires the modules together (monitoring.tf: alarms, dashboard, alert email)
+lambdas/notify/         Push-notification Lambda (also emits custom metrics)
 scripts/                deploy-app.sh, setup-vapid.sh
-.github/workflows/      PR checks, deploy, E2E
+.github/workflows/      PR checks, deploy, E2E, uptime check
 ```
 
 ## Running it yourself
@@ -144,11 +150,10 @@ For local development: `cd app && npm run dev` (after step 4 has written `app/.e
 
 ## Roadmap
 
-- **Price comparison** across Coles, Woolworths and Aldi. Waiting on official retailer price APIs (recommended by the ACCC's 2025 supermarket inquiry) rather than scraping.
-- GraphQL code generation for fully typed API calls.
+- Leave or delete a list, remove members, and generate a new invite code (owner-only actions, enforced in the API)
 - Server-assigned timestamps for incremental sync on large lists.
 - Shared expenses ("you owe Sam $14.50") and smart "you usually buy milk every 6 days" suggestions.
 
 ## Author
 
-**Bhargavi Akula**: [GitHub](https://github.com/Bagi0402) · [LinkedIn](https://www.linkedin.com/in/YOUR-PROFILE)
+**Bhargavi Akula**: [GitHub](https://github.com/Bagi0402) · [LinkedIn](https://www.linkedin.com/in/bhargavi-akula-16793434)
