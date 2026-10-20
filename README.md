@@ -96,7 +96,7 @@ DynamoDB Streams trigger a Lambda that groups changes per list (with a 5-second 
 - **Renaming a Terraform resource** would have deleted and recreated a DynamoDB table. A `moved` block made it a safe rename.
 - **Service worker updates.** Long-lived CDN caching would have frozen users on old versions. The deploy script uploads hashed assets first with one-year caching, then `index.html`, `sw.js` and the manifest with `no-cache`, and invalidates only those paths.
 - **AppSync subscriptions** only deliver fields that the *mutation* requested; mutations and the subscription share one field list to avoid silent gaps.
-- **Amplify's TypeScript types** expect generated GraphQL types; a typed helper handles plain GraphQL strings (codegen is on the roadmap).
+- **Amplify's TypeScript types** expect generated GraphQL types; a typed helper handles plain GraphQL strings.
 
 ## Cost
 
