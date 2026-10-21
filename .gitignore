@@ -6,4 +6,5 @@ crash.log
 node_modules/
 dist/
 .env*
-lambdas/.build/.DS_store
+lambdas/.build/
+.DS_Store
